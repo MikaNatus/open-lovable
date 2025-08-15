@@ -23,7 +23,12 @@ import {
   Globe,
   Wand2,
   Lightbulb,
-  Rocket
+  Rocket,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Eye,
+  FileText
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -45,6 +50,9 @@ interface SandboxData {
   url: string;
 }
 
+type ViewMode = 'desktop' | 'tablet' | 'mobile';
+type PanelMode = 'preview' | 'code';
+
 export default function HomePage() {
   const [prompt, setPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('moonshotai/kimi-k2-instruct');
@@ -57,6 +65,9 @@ export default function HomePage() {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(4000);
   const [enableStreaming, setEnableStreaming] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>('desktop');
+  const [panelMode, setPanelMode] = useState<PanelMode>('preview');
+  const [projectFiles, setProjectFiles] = useState<Record<string, string>>({});
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -83,6 +94,29 @@ export default function HomePage() {
     "Сделай блог о путешествиях с постами, категориями и поиском",
     "Создай дашборд для аналитики с графиками и таблицами данных"
   ];
+
+  // Получение файлов проекта для отображения кода
+  const fetchProjectFiles = async () => {
+    if (!sandboxData) return;
+    
+    try {
+      const response = await fetch('/api/get-sandbox-files');
+      const data = await response.json();
+      
+      if (data.success) {
+        setProjectFiles(data.files);
+      }
+    } catch (error) {
+      console.error('Ошибка получения файлов:', error);
+    }
+  };
+
+  // Загружаем файлы при переключении на режим кода
+  useEffect(() => {
+    if (panelMode === 'code' && sandboxData) {
+      fetchProjectFiles();
+    }
+  }, [panelMode, sandboxData]);
 
   const createSandbox = async () => {
     setIsCreatingSandbox(true);
@@ -219,6 +253,10 @@ export default function HomePage() {
                         }
                       : msg
                   ));
+                  // Обновляем файлы проекта после генерации
+                  if (panelMode === 'code') {
+                    fetchProjectFiles();
+                  }
                 } else if (data.type === 'error') {
                   throw new Error(data.error);
                 }
@@ -292,6 +330,20 @@ export default function HomePage() {
     }
   };
 
+  // Получение размеров для разных устройств
+  const getViewportSize = (mode: ViewMode) => {
+    switch (mode) {
+      case 'mobile':
+        return { width: '375px', height: '667px' };
+      case 'tablet':
+        return { width: '768px', height: '1024px' };
+      case 'desktop':
+      default:
+        return { width: '100%', height: '100%' };
+    }
+  };
+
+  const viewportSize = getViewportSize(viewMode);
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
@@ -516,7 +568,9 @@ export default function HomePage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Globe className="w-5 h-5 text-gray-600" />
-                  <h3 className="font-semibold text-gray-900">Предварительный просмотр</h3>
+                  <h3 className="font-semibold text-gray-900">
+                    {panelMode === 'preview' ? 'Предварительный просмотр' : 'Код проекта'}
+                  </h3>
                 </div>
                 {sandboxData && (
                   <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -525,26 +579,146 @@ export default function HomePage() {
                   </div>
                 )}
               </div>
+              
+              {/* Переключатель режимов */}
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setPanelMode('preview')}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      panelMode === 'preview'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    Предпросмотр
+                  </button>
+                  <button
+                    onClick={() => setPanelMode('code')}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      panelMode === 'code'
+                        ? 'bg-white text-gray-900 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    Код
+                  </button>
+                </div>
+              </div>
+
+              {/* Контролы устройств (только для предпросмотра) */}
+              {panelMode === 'preview' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600 mr-2">Устройство:</span>
+                  <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setViewMode('desktop')}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'desktop'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      title="Компьютер"
+                    >
+                      <Monitor className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('tablet')}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'tablet'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      title="Планшет"
+                    >
+                      <Tablet className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setViewMode('mobile')}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        viewMode === 'mobile'
+                          ? 'bg-white text-gray-900 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                      title="Телефон"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {viewMode !== 'desktop' && (
+                    <span className="text-xs text-gray-500 ml-2">
+                      {viewMode === 'mobile' ? '375×667' : '768×1024'}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div className="h-full bg-gray-100 flex items-center justify-center">
+            <div className="h-full bg-gray-100 flex items-center justify-center overflow-auto">
               {sandboxData ? (
-                <iframe
-                  ref={iframeRef}
-                  src={sandboxData.url}
-                  className="w-full h-full border-0"
-                  title="Website Preview"
-                />
+                panelMode === 'preview' ? (
+                  <div 
+                    className="bg-white shadow-lg transition-all duration-300 ease-in-out"
+                    style={{
+                      width: viewportSize.width,
+                      height: viewportSize.height,
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      borderRadius: viewMode !== 'desktop' ? '12px' : '0',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <iframe
+                      ref={iframeRef}
+                      src={sandboxData.url}
+                      className="w-full h-full border-0"
+                      title="Website Preview"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full p-4 overflow-auto">
+                    {Object.keys(projectFiles).length > 0 ? (
+                      <div className="space-y-4">
+                        {Object.entries(projectFiles).map(([filePath, content]) => (
+                          <div key={filePath} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                            <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                              <h4 className="text-sm font-medium text-gray-900">{filePath}</h4>
+                            </div>
+                            <div className="p-4">
+                              <pre className="text-xs text-gray-800 overflow-x-auto whitespace-pre-wrap">
+                                <code>{content}</code>
+                              </pre>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <Code className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600">Файлы проекта будут отображены здесь после генерации</p>
+                      </div>
+                    )}
+                  </div>
+                )
               ) : (
                 <div className="text-center py-12">
                   <div className="w-16 h-16 bg-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Globe className="w-8 h-8 text-gray-400" />
+                    {panelMode === 'preview' ? (
+                      <Globe className="w-8 h-8 text-gray-400" />
+                    ) : (
+                      <Code className="w-8 h-8 text-gray-400" />
+                    )}
                   </div>
                   <h3 className="text-lg font-semibold text-gray-600 mb-2">
-                    Предварительный просмотр
+                    {panelMode === 'preview' ? 'Предварительный просмотр' : 'Код проекта'}
                   </h3>
                   <p className="text-gray-500">
-                    Здесь появится ваш сайт после генерации
+                    {panelMode === 'preview' 
+                      ? 'Здесь появится ваш сайт после генерации'
+                      : 'Здесь будет отображен код проекта'
+                    }
                   </p>
                 </div>
               )}
